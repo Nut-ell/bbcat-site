@@ -14,6 +14,7 @@
     .redirect.show { opacity:1; }
     .redirect-text { color:#eb6f92; animation: blink 1s step-start infinite; }
     @keyframes blink { 0%,50%{opacity:1;} 51%,100%{opacity:0.7;} }
+    .skip { position: absolute; bottom: 18px; right: 18px; opacity:.75; font-size:.9rem; }
   </style>
 </head>
 <body>
@@ -25,9 +26,16 @@
   <div class="redirect" id="redirect">
     <div class="redirect-text">redirecting...</div>
   </div>
+  <div class="skip" id="skip">click to skip →</div>
   <script>
     // ==== Redirect destination (updated) ====
     const REDIRECT_URL = 'https://nut-ell.github.io/crypto-dataviz/';
+
+    // Safety: even if animation never ends, redirect after MAX_WAIT_MS.
+    const MAX_WAIT_MS = 12000; // 12s fallback
+    setTimeout(() => location.href = REDIRECT_URL, MAX_WAIT_MS);
+    document.getElementById('skip').onclick = () => location.href = REDIRECT_URL;
+    window.addEventListener('keydown', () => location.href = REDIRECT_URL);
 
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
@@ -38,7 +46,7 @@
 
     class Block {
       constructor(x,y,targetY,color,delay){
-        this.x=x;this.y=y;this.targetY=targetY;this.color=color;this.delay=delay;this.speed=2+Math.random()*2;this.landed=false;
+        this.x=x;this.y=y;this.targetY=targetY;this.color=color;this.delay=delay;this.speed=3+Math.random()*2;this.landed=false;
       }
       update(){ if(this.delay>0){this.delay--;return;} if(!this.landed){ this.y+=this.speed; if(this.y>=this.targetY){ this.y=this.targetY; this.landed=true; } } }
       draw(){ if(this.delay>0) return; ctx.fillStyle=this.color; ctx.fillRect(this.x*SIZE,this.y*SIZE,SIZE-1,SIZE-1); ctx.fillStyle='rgba(255,255,255,.1)'; ctx.fillRect(this.x*SIZE,this.y*SIZE,SIZE-1,2); }
@@ -50,7 +58,8 @@
         for(let c=0;c<COLS;c++){
           if(CAT_PATTERN[r][c]!==0){
             const color=COLORS[CAT_PATTERN[r][c]];
-            const delay=Math.random()*60+idx*2; const startY=-Math.random()*10-5;
+            const delay=Math.random()*30 + idx*1; // faster finish
+            const startY=-Math.random()*6 - 3;
             blocks.push(new Block(c,startY,r,color,delay)); idx++;
           }
         }
@@ -60,16 +69,16 @@
     function animate(){
       ctx.clearRect(0,0,canvas.width,canvas.height);
       let allLanded=true;
-      blocks.forEach(b=>{ b.update(); b.draw(); if(!b.landed) allLanded=false; });
+      for(const b of blocks){ b.update(); b.draw(); if(!b.landed) allLanded=false; }
       if(allLanded){
         setTimeout(()=>{
           document.getElementById('message').style.opacity=1;
           setTimeout(()=>{
             document.getElementById('message').style.opacity=0;
             document.getElementById('redirect').classList.add('show');
-            setTimeout(()=>{ window.location.href = REDIRECT_URL; }, 2000);
-          }, 2000);
-        }, 1000);
+            setTimeout(()=>{ location.href = REDIRECT_URL; }, 1200);
+          }, 1200);
+        }, 400);
       } else {
         requestAnimationFrame(animate);
       }
