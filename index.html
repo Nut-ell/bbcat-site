@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BBCAT — Pixel Cat</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --ink: #e6e9ef;
+      --muted: #9aa4b2;
+      --accent: #f5c518; /* cat-eyes yellow */
+      --neon: #7aa2f7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      display: grid; 
+      place-items: center; 
+      background: radial-gradient(1200px 700px at 50% 50%, #192033 0%, var(--bg) 40%) no-repeat fixed;
+      color: var(--ink); 
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    }
+
+    .container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+    }
+
+    canvas { 
+      display: block; 
+      image-rendering: pixelated; 
+      background: transparent;
+      opacity: 1;
+      transition: opacity 2s ease-out;
+    }
+    canvas.fade-out {
+      opacity: 0;
+    }
+
+    .message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      opacity: 0;
+      transition: opacity 2s ease-in;
+    }
+    .message.show {
+      opacity: 1;
+    }
+
+    .message h1 {
+      font-size: clamp(1.5rem, 4vw, 3rem);
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--accent);
+      text-shadow: 0 0 30px rgba(245, 197, 24, 0.5);
+      margin-bottom: 1rem;
+      animation: glow 2s ease-in-out infinite alternate;
+    }
+
+    .message p {
+      font-size: clamp(0.9rem, 2vw, 1.2rem);
+      color: var(--muted);
+      letter-spacing: 1px;
+    }
+
+    @keyframes glow {
+      from { text-shadow: 0 0 20px rgba(245, 197, 24, 0.5), 0 0 40px rgba(245, 197, 24, 0.3); }
+      to { text-shadow: 0 0 30px rgba(245, 197, 24, 0.8), 0 0 60px rgba(245, 197, 24, 0.4); }
+    }
+
+    @keyframes drop {
+      from { transform: translateY(-100px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .restart-btn {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 24px;
+      background: rgba(122, 162, 247, 0.1);
+      border: 1px solid rgba(122, 162, 247, 0.3);
+      border-radius: 8px;
+      color: var(--neon);
+      cursor: pointer;
+      font-size: 14px;
+      opacity: 0;
+      transition: all 0.3s ease;
+    }
+    .restart-btn.show {
+      opacity: 1;
+    }
+    .restart-btn:hover {
+      background: rgba(122, 162, 247, 0.2);
+      transform: translateX(-50%) translateY(-2px);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <canvas id="game" width="400" height="400"></canvas>
+    <div class="message" id="message">
+      <h1>BBCAT</h1>
+      <p>Make big data purr.</p>
+    </div>
+    <button class="restart-btn" id="restart" onclick="restartAnimation()">Watch Again</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const SIZE = 20; // Block size
+    const COLS = 20;
+    const ROWS = 20;
+
+    // Cat pattern (1 = block, 0 = empty)
+    // Simple pixel cat design
+    const CAT_PATTERN = [
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0],
+      [0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0],
+      [0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,0,0],
+      [0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0],
+      [0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0],
+      [0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0],
+      [0,0,0,1,1,2,2,1,1,1,1,1,1,2,2,1,1,0,0,0],
+      [0,0,0,1,1,2,2,1,1,1,1,1,1,2,2,1,1,0,0,0],
+      [0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0],
+      [0,0,0,1,1,1,1,1,1,3,3,1,1,1,1,1,1,0,0,0],
+      [0,0,0,1,1,1,1,1,1,3,3,1,1,1,1,1,1,0,0,0],
+      [0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0],
+      [0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0],
+      [0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    ];
+
+    // Colors
+    const COLORS = {
+      0: 'transparent',
+      1: '#1a1a1a', // Black for body
+      2: '#f5c518', // Yellow for eyes
+      3: '#eb6f92'  // Pink for nose
+    };
+
+    const blocks = [];
+    let animationFrame;
+    let isAnimating = false;
+
+    class Block {
+      constructor(x, y, targetY, color, delay) {
+        this.x = x;
+        this.y = y;
+        this.targetY = targetY;
+        this.color = color;
+        this.delay = delay;
+        this.speed = 2 + Math.random() * 2;
+        this.landed = false;
+        this.opacity = 1;
+      }
+
+      update() {
+        if (this.delay > 0) {
+          this.delay--;
+          return;
+        }
+        
+        if (!this.landed) {
+          this.y += this.speed;
+          if (this.y >= this.targetY) {
+            this.y = this.targetY;
+            this.landed = true;
+          }
+        }
+      }
+
+      draw() {
+        if (this.delay > 0) return;
+        
+        ctx.globalAlpha = this.opacity;
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x * SIZE, this.y * SIZE, SIZE - 1, SIZE - 1);
+        
+        // Add subtle highlight
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.fillRect(this.x * SIZE, this.y * SIZE, SIZE - 1, 2);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function initBlocks() {
+      blocks.length = 0;
+      let blockIndex = 0;
+      
+      // Create blocks for the cat pattern
+      for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+          if (CAT_PATTERN[row][col] !== 0) {
+            const color = COLORS[CAT_PATTERN[row][col]];
+            const delay = Math.random() * 60 + blockIndex * 2;
+            const startY = -Math.random() * 10 - 5;
+            blocks.push(new Block(col, startY, row, color, delay));
+            blockIndex++;
+          }
+        }
+      }
+
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      let allLanded = true;
+      blocks.forEach(block => {
+        block.update();
+        block.draw();
+        if (!block.landed) allLanded = false;
+      });
+      
+      if (allLanded) {
+        setTimeout(() => {
+          canvas.classList.add('fade-out');
+          document.getElementById('message').classList.add('show');
+          document.getElementById('restart').classList.add('show');
+          isAnimating = false;
+        }, 1000);
+      } else {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    }
+
+    function startAnimation() {
+      if (isAnimating) return;
+      isAnimating = true;
+      
+      canvas.classList.remove('fade-out');
+      document.getElementById('message').classList.remove('show');
+      document.getElementById('restart').classList.remove('show');
+      
+      initBlocks();
+      animate();
+    }
+
+    function restartAnimation() {
+      cancelAnimationFrame(animationFrame);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      startAnimation();
+    }
+
+    // Start animation on page load
+    setTimeout(startAnimation, 500);
+
+    // Auto-restart after a while
+    setInterval(() => {
+      if (!isAnimating) {
+        restartAnimation();
+      }
+    }, 10000); // Restart every 10 seconds
+  </script>
+</body>
+</html>
